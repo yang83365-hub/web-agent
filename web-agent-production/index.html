@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b0d12" />
+  <title>Web Agent — Browser Coding Agent</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body class="style-opencode">
+  <div id="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-dot"></span><strong>Web Agent</strong><span class="version">v1.2.3</span></div>
+      <div class="top-actions">
+        <span id="runtimeBadge" class="badge muted">Runtime 待启动</span>
+        <span id="workspaceBadge" class="badge muted">未选择 Workspace</span>
+        <button id="themeBtn" class="theme-btn" type="button" title="切换黑白主题">☾</button>
+        <button id="settingsBtn" class="icon-btn" type="button" title="设置">⚙</button>
+      </div>
+    </header>
+
+    <main class="layout" id="workspaceLayout">
+      <aside class="sidebar pane" id="leftPane">
+        <section class="panel workspace-panel">
+          <div class="panel-title"><span data-i18n="workspace">WORKSPACE</span><button id="refreshTreeBtn" class="mini-btn" data-i18n="refresh">刷新</button></div>
+          <div class="workspace-actions">
+            <button id="openFolderBtn" class="primary-btn" data-i18n="chooseFolder">选择本地文件夹</button>
+            <button id="importBtn" class="secondary-btn" data-i18n="importProject">导入 ZIP / 文件夹</button>
+            <input id="folderInput" type="file" webkitdirectory directory multiple hidden />
+            <input id="zipInput" type="file" accept=".zip,application/zip" hidden />
+          </div>
+          <div id="workspaceInfo" class="small muted-text" data-i18n="workspaceHint">桌面 Chromium 可直接授权本地目录；其他浏览器可导入项目到浏览器沙箱。</div>
+        </section>
+
+        <section class="panel tree-panel fill-panel">
+          <div class="panel-title"><span data-i18n="files">FILES</span><button id="newFileBtn" class="mini-btn" data-i18n="new">+ 新建</button></div>
+          <div id="fileTree" class="file-tree empty-state">还没有打开项目</div>
+        </section>
+
+        <section class="panel providers-panel">
+          <div class="panel-title"><span data-i18n="model">MODEL</span><button id="settingsBtn2" class="mini-btn" data-i18n="configure">配置</button></div>
+          <div id="providerSummary" class="small muted-text">未配置 API</div>
+        </section>
+      </aside>
+
+      <div class="h-resizer" data-resize="left" title="拖拽调整文件区宽度"><span></span></div>
+
+      <section class="chat-shell pane" id="centerPane">
+        <div class="chat-panel" id="chatPane">
+          <div class="chat-head">
+            <div><div class="eyebrow" data-i18n="agent">WEB AGENT</div><div class="chat-title">Web Agent</div></div>
+            <div class="chat-head-actions"><span id="stepCounter" class="badge muted">0 / 30</span><button id="stopAgentBtn" class="mini-btn danger" disabled data-i18n="stop">停止</button></div>
+          </div>
+          <div id="chatLog" class="chat-log"></div>
+          <div class="v-resizer inner-resizer" data-resize="activity" title="拖拽调整活动日志高度"><span></span></div>
+          <div id="activityLog" class="activity-log"></div>
+          <div class="composer">
+            <textarea id="prompt" rows="4" data-i18n-placeholder="promptPlaceholder" placeholder="告诉 Web Agent 你想完成什么。回车发送，Shift+Enter 换行。"></textarea>
+            <div class="composer-row"><div class="composer-left"><span class="small muted-text" data-i18n="enterHint">Enter 发送 · Shift+Enter 换行</span></div><button id="runAgentBtn" class="primary-btn" data-i18n="send">发送</button></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="h-resizer" data-resize="right" title="拖拽调整编辑区宽度"><span></span></div>
+
+      <section class="editor-shell pane" id="rightPane">
+        <div class="center-header">
+          <div class="tabbar"><div class="tab active"><span id="currentFile">未打开文件</span><button id="closeTabBtn" class="tab-close">×</button></div></div>
+          <div class="editor-actions"><button id="saveBtn" class="secondary-btn" disabled data-i18n="save">保存</button><button id="saveAllBtn" class="secondary-btn" disabled data-i18n="applyAll">应用全部修改</button><button id="downloadZipBtn" class="secondary-btn" disabled data-i18n="exportZip">导出 ZIP</button></div>
+        </div>
+        <div class="editor-wrap" id="editorPane"><textarea id="editor" spellcheck="false" data-i18n-placeholder="editorPlaceholder" placeholder="选择文件后开始编辑…"></textarea></div>
+        <div class="v-resizer" data-resize="diff" title="拖拽调整 Diff 高度"><span></span></div>
+        <div class="diff-wrap" id="diffPane"><div class="diff-header"><span>CHANGES / DIFF</span><span id="diffCount" class="badge muted">0</span></div><div id="diffPanel" class="diff-panel empty-state">暂无待应用修改</div></div>
+      </section>
+    </main>
+  </div>
+
+  <div id="saveProgress" class="save-progress" hidden aria-live="polite">
+    <div class="save-progress-card">
+      <div class="save-progress-title" data-i18n="processingChanges">正在处理修改…</div>
+      <div class="save-progress-track"><div id="saveProgressBar" class="save-progress-bar"></div></div>
+      <div id="saveProgressText" class="save-progress-text">0 / 0</div>
+    </div>
+  </div>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="dialog-card" id="settingsForm">
+      <div class="dialog-head"><h2 data-i18n="settings">设置</h2><button value="cancel" class="icon-btn">×</button></div>
+      <div class="form-grid">
+        <label><span data-i18n="provider">供应商</span><select id="provider">
+<option value="openai">OpenAI</option>
+<option value="anthropic">Anthropic Claude</option>
+<option value="gemini">Google Gemini</option>
+<option value="openrouter">OpenRouter</option>
+<option value="deepseek">DeepSeek</option>
+<option value="qwen">Qwen / DashScope</option>
+<option value="moonshot">Moonshot / Kimi</option>
+<option value="zhipu">Zhipu AI / GLM</option>
+<option value="minimax">MiniMax</option>
+<option value="volcengine">Volcengine / Doubao Ark</option>
+<option value="baichuan">Baichuan</option>
+<option value="siliconflow">SiliconFlow</option>
+<option value="nvidia">NVIDIA NIM</option>
+<option value="mistral">Mistral</option>
+<option value="xai">xAI / Grok</option>
+<option value="groq">Groq</option>
+<option value="together">Together AI</option>
+<option value="fireworks">Fireworks AI</option>
+<option value="cerebras">Cerebras</option>
+<option value="sambanova">SambaNova</option>
+<option value="perplexity">Perplexity</option>
+<option value="cohere">Cohere</option>
+<option value="custom">Custom OpenAI Compatible</option>
+</select></label>
+        <label><span data-i18n="apiUrl">API URL</span><input id="apiUrl" type="url" placeholder="自动填充 /v1/chat/completions" /></label>
+        <div id="providerNotice" class="provider-notice" hidden></div>
+        <label class="full"><span data-i18n="apiKey">API Key</span><input id="apiKey" type="password" placeholder="保存在当前浏览器 localStorage" /></label>
+        <label><span data-i18n="modelSelect">模型</span><select id="model"></select></label>
+        <div class="model-stack"><button type="button" id="loadModelsBtn" class="secondary-btn" data-i18n="loadModels">读取模型</button><span id="modelStatus" class="small muted-text">读取后可选择模型</span></div>
+        <label><span data-i18n="thinkingStrength">思考强度</span><select id="thinkingMode"><option value="auto">自动</option><option value="none">关闭</option><option value="minimal">最低</option><option value="low">低</option><option value="medium" selected>中</option><option value="high">高</option><option value="xhigh">极高</option></select></label>
+        <label class="checkbox-row"><input id="showReasoning" type="checkbox" /><span data-i18n="reasoningSummary">显示模型推理摘要（仅展示供应商公开返回的摘要，不展示隐藏思维链）</span></label>
+        <label><span data-i18n="language">语言</span><select id="language"><option value="zh-CN">简体中文</option><option value="en-US">English</option></select></label>
+                <label class="full"><span data-i18n="maxSteps">最大 Agent 步数</span><input id="maxSteps" type="number" min="1" max="100" value="30" /></label>
+      </div>
+
+      <section class="skill-section">
+        <div class="section-title"><span data-i18n="skills">SKILLS</span><label class="secondary-btn skill-load-btn"><span data-i18n="loadSkill">装载 Skill</span><input id="skillInput" type="file" accept=".md,.txt,.json" multiple hidden /></label></div>
+        <div class="small muted-text skill-help" data-i18n="skillHint">上传 Markdown / TXT / JSON Skill。激活后的 Skill 会作为 Agent 的额外工作规范。</div>
+        <div id="skillsList" class="skills-list"></div>
+      </section>
+
+      <div class="notice" data-i18n="securityNotice">API Key 默认只保存在当前浏览器的 localStorage。正式商业产品建议使用后端代理或其他安全的密钥管理方案。</div>
+      <div class="dialog-foot"><span class="made-by" data-i18n="madeBy">由老鼠人开发</span><span class="spacer"></span><button value="cancel" class="secondary-btn" data-i18n="cancel">取消</button><button id="saveSettingsBtn" value="default" class="primary-btn" data-i18n="saveSettings">保存设置</button><button type="button" id="testApiBtn" class="secondary-btn" data-i18n="testApi">测试 API</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="confirmDialog">
+    <div class="dialog-card">
+      <div class="dialog-head"><h2 id="confirmTitle" data-i18n="confirm">确认操作</h2></div>
+      <div id="confirmBody" class="confirm-body"></div>
+      <div class="dialog-foot"><button id="confirmNo" class="secondary-btn" data-i18n="reject">拒绝</button><button id="confirmYes" class="primary-btn" data-i18n="allow">允许</button></div>
+    </div>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
